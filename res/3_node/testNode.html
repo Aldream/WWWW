@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<script src="node.js"></script>
+<script src="job.js"></script>
+<title>WWWW - Test</title>
+</head>
+<body>
+
+<h1> WWWW - Implementing Nodes ...</h1>
+<p>Please enter your algorithm andthe data it will use. <br/>
+Your data can be anything (a text, json, a link to a webpage or to one of your file, null, ...).<br/>
+The algorithm must be in plain JS, and you can access the given data by using the variable named "data". You have also access to other functions to help you interact with :</p>
+<ul>
+	<li>asynchronousAjaxRequest(/* String */ action, /* String */ dest) - allow you to send a simple Ajax request and return its result. <small> (a function created through <em>eval()</em> can't access to the Network layer by its own, that's why you must use our API)</small></li>
+	<li> ... and more to come</li>
+</ul>
+
+<p>TO DO : Stop using <em>eval()</em> to gain in performance (eval-generated functions aren't cached for instance). Maybe use instead a server-side script to get the form and generate the JS function ...</p>
+
+<form name="jobCreationForm" onsubmit="return validateForm()" />
+	<label for="data">Data : </label><textarea name="data" id="data" cols="50" rows="3"></textarea><br/>
+	<label for="work">Algorithm : </label><textarea name="work" id="work" cols="120" rows="5"/></textarea>
+	<input type="submit" />
+</body>
+<script> 
+	function arrayBuffer2String(buf, callback) {
+		var bb = new BlobBuilder();
+		bb.append(buf);
+		var f = new FileReader();
+		f.onload = function(e) {
+			callback(e.target.result)
+		}
+		f.readAsText(bb.getBlob());
+	}
+
+	function validateForm() {
+		var data=document.forms["jobCreationForm"]["data"].value;
+		var work=document.forms["jobCreationForm"]["work"].value;
+		try {
+			var fn = new Function("data", work);
+			Node.job = new Job(work, data, 0);
+			Node.lauch();
+			alert("Your job is running.");
+		} catch (e) {
+			alert("Your JS algorithm isn't correct : "+ e.message);
+		}
+
+	}
+
+	document.forms["jobCreationForm"]["work"].value = '	var charToCount = "e";                       '
+	+'return CountChar(asynchronousAjaxRequest(\'GET\', data));      '
+	+'                                                               '
+	+'function CountChar(text) {                                     '
+	+'	count = 0;                                                   '
+	+'	for (var i = 0; i < text.length; i++) {                      '
+	+'		if (text[i] == charToCount) {                            '
+	+'			count++;                                             '
+	+'		}                                                        '
+	+'	}                                                            '
+	+'	return(count);                                          	 '
+	+'}';   
+	
+	document.forms["jobCreationForm"]["data"].value = "test.txt";
+	
+</script>
+</html>
