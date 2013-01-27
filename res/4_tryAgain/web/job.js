@@ -23,6 +23,7 @@
 	this.work = work;
 	this.data = data;
 	this.index = index;
+	this.roomName = 'job'+index;
 }
 
  
