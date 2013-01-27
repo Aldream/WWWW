@@ -34,10 +34,13 @@
  /* ---- TOJSON ---- */
 /**
  * Return a JSON object which contains a copy of the job.
+ * @param withData Flag to add or not the data.
  * @return JSON object
  */
-Job.prototype.toJson = function JobToJson() {
-	return {work : this.work, data : this.data, index : this.index};
+Job.prototype.toJson = function JobToJson(/* bool */ withData) {
+	return (withData)?
+		{work : this.work, data : this.data, index : this.index}
+		: {work : this.work, index : this.index};
 }
 
  /* ---- FROMJSON ---- */
