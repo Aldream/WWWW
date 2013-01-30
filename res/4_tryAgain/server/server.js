@@ -3,41 +3,104 @@ var sio = require('socket.io').listen( PORT );
 
 runningJobs = [];
 
-function sendOrder(socket)
-{
-    console.log('Sending client an order for ' + formerLow + ' / ' + formerHigh);
-    socket.emit('order', {low: formerLow, high: formerHigh});
-    formerLow = formerHigh;
-    formerHigh += RANGE_COMPUTE;
-}
-
  /**
-  * Asynchronously fetches the chunks of data from the master.
-  * @param socket - Socket to the master.
-  * @param chunkId - Id of the next chunk.
-  */
+* Asynchronously fetches the chunks of data from the master.
+* @param socket - Socket to the master.
+* @param chunkId - Id of the next chunk.
+*/
 function fetchDataByChunks(/* Socket */ socket, /* int */ chunkId) {
 	socket.emit('chunk', chunkId, function (chunk) {
 		if (chunk != null) {
-			runningJobs[data.index].dataChunks[chunkId] = chunk;
+			runningJobs[data.index].unassignedChunks[chunkId] = chunk;
 			fetchDataByChunks(socket, ++chunkId)
-		});
+		}
+	});
 }
 
 sio.sockets.on('connection', function(socket) {
     console.log('New client');
-    // workers.push( socket ); // TODO add to workers list with id?
+	
+	socket.join('waitingRoom');
 
-	socket.on('job'), function (data) {
-		// Creating the job server-side:
-		runningJobs[data.index] = new Job( data.work, data.index, socket );
-		
-		// Creating a room for the master and its workers:
-		socket.join(runningJobs[data.index].roomName);
-		
-		// Starting to asynchronously fetch the chunks of data from the master:
-		fetchDataByChunks(socket, 0);
-		
+	socket.on('job', function (data) { // The node want to be master of a job:
+	
+		socket.get('currentWork', function (err, workId) {
+			if (workId == null) {
+				// Creating the job server-side:
+				runningJobs[data.index] = new Job( data.work, data.index, socket );
+
+				// Creating a room for the master and its workers:
+				socket.join(runningJobs[data.index].roomName);
+				socket.leave('waitingRoom');
+				
+				// Updating information about the node:
+				socket.set('currentWork', data.index, function () {
+					socket.emit('ready');
+				});
+				
+				// Defining the master-related events:
+				socket.on('reduce', function (x, callback) { // The master want to get some intermediate results to reduce them:
+				/** @todo The reduce operation could be done by other workers instead of the master. */
+				/** @todo Improve the results affectation. */
+					callback(runningJobs[data.index].intermediateResults.pop());
+				});
+
+				// Starting to asynchronously fetch the chunks of data from the master:
+				fetchDataByChunks(socket, 0);
+			}
+			else { // Already working
+				socket.emit('error', {info: 'Already working.'});
+			}
+		});
+    });
+	
+	socket.on('work', function (data) { // The node want to become worker:
+	
+		socket.get('currentWork', function (err, workId) {
+			if (workId == null) {
+				// Updating information about the node:
+				socket.set('currentWork', data.index, function () {
+					
+					// Joining the workers on this job:
+					socket.join(runningJobs[data.index].roomName);
+					socket.leave('waitingRoom');
+					
+					// Defining the worker-related events:
+					socket.on('chunk', function (x, callback) { // The worker want a chunk of data:
+						if (runningJobs[data.index].unassignedChunks.length > 0) { // We got unassigned chunks, so we give one to him
+							var chunk = runningJobs[data.index].unassignedChunks.shift();
+							socket.set('currentChunk', chunk.id, function () {
+								runningJobs[data.index].assignedChunks[chunk.id] = chunk;
+								callback(chunk);
+							});
+						}
+						/** @todo else... (check among the already-assigned chunks? put the worker in a waiting queue?) */
+					});
+					
+					socket.on('result', function (result, callback) { // The worker returns its intermediate result:
+						
+						socket.get('currentChunk', function (err, chunkId) {
+							if (runningJobs[data.index].intermediateResults[result.key] == null) {
+								runningJobs[data.index].intermediateResults[result.key] = {key: result.key, results: []};
+							}
+							runningJobs[data.index].intermediateResults[result.key].results.push(result)
+							
+							// The corresponding chunk has no use anymore, we delete it:
+							runningJobs[data.index].assignedChunks[chunkId] = null;
+							
+							socket.set('currentChunk', null, function () {
+								callback(true);
+							});
+						});
+					});
+				
+					socket.emit('ready');
+				});
+			}
+			else { // Already working
+				socket.emit('error', {info: 'Already working.'});
+			}
+		});
     });
 
     socket.on('disconnect', function() {
