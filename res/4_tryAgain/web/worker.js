@@ -16,16 +16,16 @@
 /**
 * Constructor
 * @param id - ID given to this worker.
-* @param job - Job this node will work on.
+* @param idJob - ID of the job this node will work on.
 * @param socket - Socket to communicate with the server.
 */
-function Worker(/* int */ id, /* Object:Job */ job, /* Socket */ socket) {
+function Worker(/* int */ id, /* int */ idJob, /* Socket */ socket) {
 	this.id = id;
-	this.job = job;
+	this.mapFunction = null;
 	this.socket = socket;
 
-	this.dataChunk = {}; // Chunk of data the worker is currently dealing with.
-	this.results = {};
+	//this.dataChunk = {}; // Chunk of data the worker is currently dealing with.
+	//this.results = {};
 	
 	// Defining how to handle some socket events:
 	/** @todo */
@@ -53,10 +53,6 @@ function Worker(/* int */ id, /* Object:Job */ job, /* Socket */ socket) {
 		// "message" is emitted when a message sent with socket.send is received. message is the sent message, and callback is an optional acknowledgement function.
 		
 	});
-	this.socket.on('anything', function(data, callback) {
-		// "anything" can be any event except for the reserved ones. data is data, and callback can be used to send a reply.
-		
-	});
 	this.socket.on('reconnect_failed', function () {
 		// "reconnect_failed" is emitted when socket.io fails to re-establish a working connection after the connection was dropped.
 		
@@ -67,6 +63,17 @@ function Worker(/* int */ id, /* Object:Job */ job, /* Socket */ socket) {
 	});
 	this.socket.on('reconnecting', function () {})
 		
+	});
+	
+	// Subscribing as a worker to the server:
+	this.socket.emit('work', idJob, function(mapFunction) {
+		if (mapFunction != null) { // We got the job
+			this.mapFunction = mapFunction;
+			
+			// So we start working...
+			this.work();
+		}
+		/** @todo else ... */
 	});
 }
 
@@ -79,18 +86,32 @@ Worker.prototype = {
 	
 	/** Communications Methods **/
 	
-	askChunk: function() {
-		var worker = this;
-		this.socket.emit('chunk', {}, function(data) {
-			/** @todo */
-			if data is a chunk
-				worker.dataChunk = data;
-				worker.map();
+	/**
+	* Fetches chunks of data, processes them, and sends back the intermediate results, over and over.
+	*/
+	work: function() {
+		// We fetch a chunk:
+		this.socket.emit('chunk', null, function (chunk) {
+			/** @todo Deal with the "no-more-" or "not-yet-" chunks cases ... */
+			/** @todo Deal with the map function aynchronously (using webworkers)? */
+			// We process it:
+			this.mapFunction(chunk);
+			// We start again:
+			this.work();
 		});
 	},
 	
-	sendResults: function() {
-	
+	/**
+	* Sends an intermediate result to the server.
+	* Should be used inside the Map function.
+	* @param intermediateResult - Result to be sent.
+	*/
+	emit: function(/* Object */ intermediateResult) {
+		this.socket.emit('result', intermediateResult, function (isAcknowledged) {
+			if (!isAcknowledged) {
+				this.emit(intermediateResult);
+			}
+		});
 	}
 	
 	/** Algorithm Methods **/
