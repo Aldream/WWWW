@@ -89,7 +89,7 @@ Worker.prototype = {
 	/**
 	* Fetches chunks of data, processes them, and sends back the intermediate results, over and over.
 	*/
-	work: function() {
+	work: function WorkerWork() {
 		// We fetch a chunk:
 		this.socket.emit('chunk', null, function (chunk) {
 			/** @todo Deal with the "no-more-" or "not-yet-" chunks cases ... */
@@ -106,14 +106,12 @@ Worker.prototype = {
 	* Should be used inside the Map function.
 	* @param intermediateResult - Result to be sent.
 	*/
-	emit: function(/* Object */ intermediateResult) {
+	emit: function WorkerEmit(/* Object */ intermediateResult) {
+		var worker = this;
 		this.socket.emit('result', intermediateResult, function (isAcknowledged) {
 			if (!isAcknowledged) {
-				this.emit(intermediateResult);
+				worker.emit(intermediateResult);
 			}
 		});
 	}
-	
-	/** Algorithm Methods **/
-	
 }
