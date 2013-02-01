@@ -23,7 +23,7 @@
 				/* Object D */ data,
 				/* Function(C): void, contains emit(<K, I>) */ map,
 				/* Function(K, List<I>): R */ reduce,
-				/* Function(int, D): C */ getChunk,
+				/* Function(int, D, Function(C):void): void */ getChunk,
 				/* Function(R): void */ callback) {
 	this.data = data;
 	this.index = index;
@@ -53,9 +53,11 @@
 
 	/**
 	 * Returns a split of data (type : Data) which will be assigned to a node for the Map process.
+	 * @param int Chunk ID.
+	 * @param callback Server callback.
 	 */
-	fetchChunk: function JobFetchData(/* int */ index) {
-		return this.getChunk(index, this.data);
+	fetchChunk: function JobFetchData(/* int */ index, /* Function(C):void */ callback) {
+		return this.getChunk(index, this.data, callback);
 	},
 
 	///**
