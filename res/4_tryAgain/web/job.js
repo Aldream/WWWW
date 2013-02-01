@@ -19,11 +19,19 @@
   * @param data - Data (or shard of data) to be processed by the job.
   * @param index - Index of the given data.
   */
- function Job(/* String*/ work, /* Data */ data, /* int */ index) {
-	this.work = work;
+ function Job( 	/* int */ index,
+				/* Object D */ data,
+				/* Function(C): void, contains emit(<K, I>) */ map,
+				/* Function(K, List<I>): R */ reduce,
+				/* Function(int, D): C */ getChunk,
+				/* Function(R): void */ callback) {
 	this.data = data;
 	this.index = index;
-	this.roomName = 'job'+index;
+	this.map = map;
+	this.reduce = reduce;
+	this.getChunk = getChunk;
+	this.callback = callback;
+	this.results = null;
 }
 
  
@@ -32,53 +40,38 @@
  * ------------------------------------
  */
  
- /* ---- TOJSON ---- */
-/**
- * Return a JSON object which contains a copy of the job.
- * @param withData Flag to add or not the data.
- * @return JSON object
- */
-Job.prototype.toJson = function JobToJson(/* bool */ withData) {
-	return (withData)?
-		{work : this.work, data : this.data, index : this.index}
-		: {work : this.work, index : this.index};
-}
+ Job.prototype = {
 
- /* ---- FROMJSON ---- */
-/**
- * Set the Job's attributes with the values og the given JSON object.
- * @param JSON object (see the structure in the function toJson)
- * @return Job
- */
-Job.prototype.fromJson = function JobFromJson(/* Object */ jsonObj) {
-	this.work = jsonObj.work;
-	this.data = jsonObj.data;
-	this.index = jsonObj.index;
-}
+	/**
+	 * Return a JSON object which contains a copy of the job for the workers.
+	 * @param withData Flag to add or not the data.
+	 * @return JSON object
+	 */
+	toJsonForWorker: function JobToJsonForWorker() {
+		return {map : this.map, index : this.index};
+	},
 
-/* ---- NEXTDATA ---- */
-/**
- * Returns a split of data (type : Data) which will be assigned to a node for the Map process.
- */
-Job.prototype.nextData = function JobNextData(/* int */ index) {
-	return null; // TO DO
-}
+	/**
+	 * Returns a split of data (type : Data) which will be assigned to a node for the Map process.
+	 */
+	fetchChunk: function JobFetchData(/* int */ index) {
+		return this.getChunk(index, this.data);
+	},
 
-/* ---- MAP ---- */
-/**
- * Process the split of data.
- * Returns a value of type T (defined by the user).
- */
-Job.prototype.map = function JobMap() {
-	var fnWork = new Function("data", this.work); // Converting the string into function
-	return fnWork(this.data);
-}
-
-/* ---- REDUCE ---- */
-/**
- * Process the data furnished by the mappers to build a more condensate result.
- * Returns a value of type T (defined by the user).
- */
-Job.prototype.reduce = function JobReduce(/* T */ data) {
-	return null; // TO DO
+	///**
+	// * Process the split of data.
+	// * Returns a value of type T (defined by the user).
+	// */
+	//map: function JobMap() {
+	//	var fnWork = new Function("data", this.work); // Converting the string into function
+	//	return fnWork(this.data);
+	//},
+	//
+	///**
+	// * Process the data furnished by the mappers to build a more condensate result.
+	// * Returns a value of type T (defined by the user).
+	// */
+	//reduce: function JobReduce(/* T */ data) {
+	//	return null; // TO DO
+	//}
 }
