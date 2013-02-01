@@ -66,7 +66,7 @@ function Master(/* int */ id, /* Object:Job */ job, /* string */ serverAddress) 
 	
 	this.socket.on('chunk', function(idChunk, callback) {
 		// "chunk" is emitted when the server request a new chunk to give it to a worker.
-		callback(this.job.fetchData(idChunk));
+		this.job.fetchData(idChunk, callback);
 	});
 	
 	this.socket.on('over', function (x) {
@@ -84,6 +84,9 @@ function Master(/* int */ id, /* Object:Job */ job, /* string */ serverAddress) 
 */
 Master.prototype = {
 
+	/**
+	 * Processes the reduce phase.
+	 */
 	reduce: function MasterReduce() {
 		var master = this;
 		this.socket.emit('reduce', null, function(intermediateResults) {
