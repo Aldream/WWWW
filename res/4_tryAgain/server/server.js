@@ -15,6 +15,9 @@ function fetchDataByChunks(/* Socket */ socket, /* int */ chunkId, /* int */ job
 			runningJobs[jobId].unassignedChunks[chunkId] = chunk;
 			fetchDataByChunks(socket, ++chunkId)
 		}
+		else { // No more chunks, we fetched'em all
+			runningJobs[jobId].state += 1;
+		}
 	});
 }
 
@@ -28,7 +31,7 @@ sio.sockets.on('connection', function(socket) {
 		socket.get('currentWork', function (err, workId) {
 			if (workId == null) {
 				// Creating the job server-side:
-				runningJobs[data.index] = new Job( data.work, data.index, socket );
+				runningJobs[data.index] = new Job( data.map, data.index, socket );
 
 				// Creating a room for the master and its workers:
 				socket.join(runningJobs[data.index].roomName);
@@ -39,6 +42,17 @@ sio.sockets.on('connection', function(socket) {
 				/** @todo The reduce operation could be done by other workers instead of the master. */
 				/** @todo Improve the results affectation. */
 					callback(runningJobs[data.index].intermediateResults.pop());
+					
+					if (runningJobs[data.index].intermediateResults.length == 0) {
+						runningJobs[data.index].intermediateResults.updateStateReducePhase();
+						
+						if ((this.state == 1) && runningJobs[data.index].unassignedChunks.length == 0) && runningJobs[data.index].assignedChunks.length == 0)) {
+							/** @todo Simplistic reasoning... Because we just gave the last intermediate results doesn't mean the job is over.
+								There are many cases (we have many reducer workers; the reducer worker is not the master; etc) in which the current
+								reduce operations can fail. We should cover them maybe... */
+							io.sockets.in(runningJobs[data.index].roomName).emit('over', null);	
+						}
+					}
 				});
 
 				// Updating information about the node:
@@ -70,8 +84,8 @@ sio.sockets.on('connection', function(socket) {
 					socket.on('chunk', function (x, callback) { // The worker want a chunk of data:
 						if (runningJobs[idJob].unassignedChunks.length > 0) { // We got unassigned chunks, so we give one to him
 							var chunk = runningJobs[idJob].unassignedChunks.shift();
-							socket.set('currentChunk', chunk.id, function () {
-								runningJobs[idJob].assignedChunks[chunk.id] = chunk;
+							runningJobs[idJob].assignedChunks.push(chunk);
+							socket.set('currentChunk', runningJobs[idJob].assignedChunks.length-1, function () {
 								callback(chunk);
 							});
 						}
@@ -80,14 +94,14 @@ sio.sockets.on('connection', function(socket) {
 					
 					socket.on('result', function (result, callback) { // The worker returns its intermediate result:
 						
-						socket.get('currentChunk', function (err, chunkId) {
+						socket.get('currentChunk', function (err, chunkIndex) {
 							if (runningJobs[idJob].intermediateResults[result.key] == null) {
-								runningJobs[idJob].intermediateResults[result.key] = {key: result.key, results: []};
+								runningJobs[idJob].intermediateResults[result.key] = {key: result.key, values: []};
 							}
-							runningJobs[idJob].intermediateResults[result.key].results.push(result)
+							runningJobs[idJob].intermediateResults[result.key].values.push(result)
 							
 							// The corresponding chunk has no use anymore, we delete it:
-							runningJobs[idJob].assignedChunks[chunkId] = null;
+							delete runningJobs[idJob].assignedChunks[chunkIndex];
 							
 							socket.set('currentChunk', null, function () {
 								callback(true);
@@ -96,7 +110,7 @@ sio.sockets.on('connection', function(socket) {
 					});
 				
 					// We send back to the worker the map function of the job:
-					callBackJob(runningJobs[idJob].work); /** @todo */
+					callBackJob(runningJobs[idJob].map); /** @todo */
 				});
 			}
 			else { // Already working
