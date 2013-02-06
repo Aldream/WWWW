@@ -13,7 +13,7 @@ function fetchDataByChunks(/* Socket */ socket, /* int */ chunkId, /* int */ job
 	socket.emit('chunk', chunkId, function (chunk) {
 		if (chunk != null) {
 			runningJobs[jobId].unassignedChunks[chunkId] = chunk;
-			fetchDataByChunks(socket, ++chunkId)
+			fetchDataByChunks(socket, ++chunkId, jobId)
 		}
 		else { // No more chunks, we fetched'em all
 			runningJobs[jobId].state += 1;
